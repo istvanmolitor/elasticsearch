@@ -21,6 +21,8 @@ abstract class AbstractElasticsearchService
 
     abstract protected function prepareDocument(Model $model): array;
 
+    abstract protected function getModelClass(): string;
+
     public function indexModel(Model $model): void
     {
         $this->client->index([
@@ -69,6 +71,20 @@ abstract class AbstractElasticsearchService
             'page' => $page,
             'per_page' => $perPage,
         ];
+    }
+
+    public function searchModel(string $query, array $options = []): array
+    {
+        $result = $this->search($query, $options);
+
+        $ids = array_column($result['hits'], '_id');
+
+        $modelClass = $this->getModelClass();
+        $models = $modelClass::whereIn('id', $ids)
+            ->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $ids)) . ')')
+            ->get();
+
+        return array_merge($result, ['hits' => $models]);
     }
 
     public function reindexAll(callable $iterator): int
